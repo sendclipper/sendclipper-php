@@ -271,6 +271,74 @@ final class ClientTest extends TestCase
         self::assertSame('Bearer sc_sbx_abc', $t->calls[0]->headers['Authorization']);
     }
 
+    public function testReplyToAndAttachmentsEncodeRawBytesAndPassContentBase64Through(): void
+    {
+        [$sc, $t] = F::client([F::json(201, self::SENT)]);
+        $sc->emails->send(self::MSG + [
+            'replyTo' => ['support@acme.io', 'billing@acme.io'],
+            'attachments' => [
+                ['filename' => 'booking-42.pdf', 'content' => "%PDF-1.4\x00\xff", 'contentType' => 'application/pdf'],
+                ['filename' => 'notes.txt', 'contentBase64' => 'aGVsbG8='],
+            ],
+        ]);
+        self::assertSame('/v1/emails', F::path($t->calls[0]));
+        self::assertSame(
+            self::MSG + [
+                'replyTo' => ['support@acme.io', 'billing@acme.io'],
+                'attachments' => [
+                    ['filename' => 'booking-42.pdf', 'content' => 'JVBERi0xLjQA/w==', 'contentType' => 'application/pdf'],
+                    ['filename' => 'notes.txt', 'content' => 'aGVsbG8='],
+                ],
+            ],
+            F::body($t->calls[0]),
+        );
+    }
+
+    public function testSandboxSendCarriesReplyToAndEncodesAttachmentsTheSameWay(): void
+    {
+        [$sc, $t] = F::client([F::json(201, ['id' => 'sbx-msg'])]);
+        $sc->sandboxes->send('sc_sbx_abc', self::MSG + [
+            'replyTo' => 'support@acme.io',
+            'attachments' => [['filename' => 'a.bin', 'content' => "\x01\x02\x03"]],
+        ]);
+        self::assertSame('/v1/sandbox/emails', F::path($t->calls[0]));
+        self::assertSame('Bearer sc_sbx_abc', $t->calls[0]->headers['Authorization']);
+        self::assertSame(
+            self::MSG + ['replyTo' => 'support@acme.io', 'attachments' => [['filename' => 'a.bin', 'content' => 'AQID']]],
+            F::body($t->calls[0]),
+        );
+    }
+
+    public function testBatchItemsGoThroughTheSameAttachmentRule(): void
+    {
+        [$sc, $t] = F::client([F::json(200, ['data' => [], 'summary' => []])]);
+        $sc->batch->send([
+            self::MSG + ['replyTo' => 'support@acme.io'],
+            self::MSG + ['attachments' => [['filename' => 'a.bin', 'content' => "\x01\x02\x03"]]],
+        ]);
+        self::assertSame(
+            ['emails' => [
+                self::MSG + ['replyTo' => 'support@acme.io'],
+                self::MSG + ['attachments' => [['filename' => 'a.bin', 'content' => 'AQID']]],
+            ]],
+            F::body($t->calls[0]),
+        );
+    }
+
+    public function testAnAttachmentNeedsExactlyOneOfContentAndContentBase64(): void
+    {
+        foreach ([['filename' => 'a'], ['filename' => 'a', 'content' => 'x', 'contentBase64' => 'eA==']] as $bad) {
+            [$sc, $t] = F::client([]);
+            try {
+                $sc->emails->send(self::MSG + ['attachments' => [$bad]]);
+                self::fail('expected InvalidArgumentException');
+            } catch (\InvalidArgumentException $e) {
+                self::assertStringContainsString('attachments[0]', $e->getMessage());
+            }
+            self::assertCount(0, $t->calls);
+        }
+    }
+
     public function testContactsImportIsMultipartCarriesNoIdempotencyKeyAndIsNeverRetried(): void
     {
         [$sc, $t] = F::client([F::json(503, ['error' => ['code' => 'unavailable', 'message' => 'down']])]);

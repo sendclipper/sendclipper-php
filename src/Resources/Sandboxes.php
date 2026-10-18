@@ -92,7 +92,9 @@ final class Sandboxes extends Resource
 
     /**
      * Send to a sandbox through its JSON door, with the sandbox's own
-     * `sc_sbx_...` token. Same fields as `emails->send()`; nothing is delivered.
+     * `sc_sbx_...` token. Same fields as `emails->send()` (`replyTo` and
+     * `attachments` included, with the same `content`/`contentBase64` rule);
+     * nothing is delivered.
      *
      * @param array<string, mixed> $params
      * @param array<string, mixed> $options
@@ -100,6 +102,6 @@ final class Sandboxes extends Resource
      */
     public function send(string $sandboxToken, array $params, array $options = []): Result
     {
-        return $this->http->call('POST', '/sandbox/emails', ['body' => self::body($params), 'bearer' => $sandboxToken], $options);
+        return $this->http->call('POST', '/sandbox/emails', ['body' => self::sendBody($params), 'bearer' => $sandboxToken], $options);
     }
 }

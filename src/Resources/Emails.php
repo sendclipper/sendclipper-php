@@ -15,13 +15,18 @@ final class Emails extends Resource
      * Every call carries an `Idempotency-Key`, so the SDK's own retries never
      * send twice. Pass `['idempotencyKey' => ...]` to make YOUR retries safe too.
      *
-     * @param array<string, mixed> $params `from`, `to`, `subject`, `html`, `text`, or `templateId`/`template` + `variables`, ...
+     * `replyTo` is one address or a list of up to 10. `attachments` is a list of
+     * `['filename' => ..., 'content' => <raw file bytes>, 'contentType' => ...]`;
+     * the SDK base64-encodes `content`. Already hold base64? Pass it as
+     * `contentBase64` instead and it is sent as given.
+     *
+     * @param array<string, mixed> $params `from`, `to`, `subject`, `html`, `text`, or `templateId`/`template` + `variables`, `replyTo`, `attachments`, ...
      * @param array<string, mixed> $options
      * @return Result<array<string, mixed>>
      */
     public function send(array $params, array $options = []): Result
     {
-        return $this->http->call('POST', '/emails', ['body' => self::body($params)], $options);
+        return $this->http->call('POST', '/emails', ['body' => self::sendBody($params)], $options);
     }
 
     /**

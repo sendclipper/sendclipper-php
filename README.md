@@ -41,6 +41,23 @@ Parameters and responses are plain arrays whose keys are the API's own field nam
 
 `from` must be a bare address on a domain you verified in SendClipper. Each message has one recipient in `to`; for several, use `batch->send`.
 
+## Reply-To and attachments
+
+```php
+[$data, $error] = $sc->emails->send([
+    'from' => 'bookings@acme.io',
+    'to' => 'ada@lumen.io',
+    'subject' => 'Your booking',
+    'html' => '<p>Your confirmation is attached.</p>',
+    'replyTo' => 'support@acme.io',
+    'attachments' => [
+        ['filename' => 'booking-42.pdf', 'content' => file_get_contents('booking-42.pdf')],
+    ],
+]);
+```
+
+`replyTo` is one address or a list of up to 10. `content` is the file's raw bytes, and the SDK base64-encodes it for you; if you already hold a base64 string, pass it as `contentBase64` instead and it is sent as given (one or the other, never both). `contentType` is guessed from the filename when you leave it out. Limits: 10 MiB per file, 25 MiB of files per message, and your sending provider's own. Attachments are not accepted on a batch item; send those emails on their own. `sandboxes->send()` takes the same two fields.
+
 ## Send with a template
 
 Design and publish a template in the dashboard, then send it by id or by its send name:
